@@ -18,9 +18,10 @@ const subcatImage: Record<string, string> = {
 };
 
 export default async function CategoryPage({ params }: Props) {
-  const cat = await prisma.category.findUnique({ where: { slug: params.slug } });
+  const { slug } = await params;
+  const cat = await prisma.category.findUnique({ where: { slug } });
   const products = await prisma.product.findMany({
-    where: { category: { slug: params.slug } },
+    where: { category: { slug } },
     orderBy: { createdAt: 'desc' },
     include: { category: { select: { slug: true } } },
   });
