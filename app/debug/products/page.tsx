@@ -1,7 +1,9 @@
 import { prisma } from '@/lib/db';
 
+export const dynamic = 'force-dynamic';
+
 export default async function DebugProducts() {
-  const products = await prisma.product.findMany({ include: { category: true }, orderBy: { createdAt: 'desc' } });
+  const products = await prisma.product.findMany({ include: { category: true }, orderBy: { createdAt: 'desc' } }).catch(() => []);
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
       <h1 className="text-2xl font-bold mb-4">Debug Products</h1>
