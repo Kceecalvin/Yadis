@@ -12,9 +12,9 @@ export default async function SearchPage({ searchParams }: Props) {
   const products = query ? await prisma.product.findMany({
     where: {
       OR: [
-        { nameEn: { contains: query, mode: 'insensitive' } },
-        { nameSw: { contains: query, mode: 'insensitive' } },
-        { descriptionEn: { contains: query, mode: 'insensitive' } },
+        { nameEn: { contains: query } },
+        { nameSw: { contains: query } },
+        { descriptionEn: { contains: query } },
       ],
     },
     take: 20,
