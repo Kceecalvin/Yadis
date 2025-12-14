@@ -55,7 +55,11 @@ async function updateProduct(formData: FormData) {
   redirect('/admin/products');
 }
 
-export default async function EditProductPage({ params }: { params: Promise<{ id: string }> }) {
+interface PageProps {
+  params: Promise<{ id: string }>;
+}
+
+export default async function EditProductPage({ params }: PageProps) {
   const { id } = await params;
   const product = await prisma.product.findUnique({ where: { id } });
   if (!product) return notFound();
