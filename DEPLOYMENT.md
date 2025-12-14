@@ -19,7 +19,18 @@
    git push -u origin main
    ```
 
-### Step 2: Deploy to Vercel
+### Step 2: Set Up Database FIRST (Required for Vercel)
+
+⚠️ **IMPORTANT**: Vercel's serverless environment doesn't support SQLite. You MUST use PostgreSQL for production.
+
+**Get Free PostgreSQL from Neon (Recommended):**
+
+1. Go to https://neon.tech
+2. Sign up for free (no credit card required)
+3. Create a new project (e.g., "ecommerce-store")
+4. Copy the connection string (looks like: `postgresql://user:pass@host/db`)
+
+### Step 3: Deploy to Vercel
 
 1. **Go to Vercel:**
    - Visit https://vercel.com
@@ -33,59 +44,46 @@
 3. **Configure Project:**
    - Framework Preset: **Next.js** (auto-detected)
    - Root Directory: `./` (leave default)
-   - Build Command: `pnpm build` (auto-detected)
+   - Build Command: Leave default (uses package.json script)
    - Output Directory: `.next` (auto-detected)
-   - Install Command: `pnpm install` (auto-detected)
+   - Install Command: Leave default
 
-4. **Environment Variables** (Optional for basic demo):
-   For basic demo, you can skip this. The site will work with SQLite.
-   
-   For production with PostgreSQL:
+4. **Environment Variables** (REQUIRED):
    - Click "Environment Variables"
-   - Add:
+   - Add the following:
      ```
-     DATABASE_PROVIDER=postgresql
-     DATABASE_URL=postgresql://...your-connection-string...
+     DATABASE_URL=postgresql://user:password@host:5432/dbname?sslmode=require
+     NEXT_PUBLIC_SITE_URL=https://your-project.vercel.app
      ```
+   - Replace `DATABASE_URL` with your Neon connection string
 
 5. **Deploy:**
    - Click "Deploy"
    - Wait 2-3 minutes for build
+   - The build will automatically run migrations and create tables
    - Your site will be live at: `https://your-project.vercel.app`
 
-### Step 3: Set Up Database (For Production)
+### Step 4: Seed the Database (Add Sample Products)
 
-**Option A: Use SQLite (Quick Demo)**
-- No setup needed
-- Database will be created automatically
-- Perfect for demo/testing
-- ⚠️ Note: Data resets on each deployment
+After your first successful deployment:
 
-**Option B: Use PostgreSQL (Production)**
-
-1. **Get Free PostgreSQL from Neon:**
-   - Go to https://neon.tech
-   - Sign up for free
-   - Create a new project
-   - Copy the connection string
-
-2. **Add to Vercel:**
-   - Go to your Vercel project → Settings → Environment Variables
-   - Add:
-     ```
-     DATABASE_PROVIDER=postgresql
-     DATABASE_URL=postgresql://user:pass@host/db?sslmode=require
-     ```
-   - Redeploy
-
-3. **Run migrations:**
+1. **Option A: Run seed script locally** (Recommended):
    ```bash
-   # Connect to production database
-   DATABASE_URL="postgresql://..." npx prisma migrate deploy
-   DATABASE_URL="postgresql://..." npx tsx prisma/seed.ts
+   cd ecommerce-store
+   # Set your production database URL
+   export DATABASE_URL="postgresql://your-connection-string"
+   npm run prisma:seed
    ```
 
-### Step 4: Test Your Site
+2. **Option B: Add products manually**:
+   - Visit `https://your-project.vercel.app/admin/products/new`
+   - Add products through the admin interface
+
+3. **Verify**:
+   - Visit your site at `https://your-project.vercel.app`
+   - You should see products on the homepage
+
+### Step 5: Test Your Site
 
 Visit your Vercel URL and test:
 - ✅ Browse products
@@ -97,19 +95,30 @@ Visit your Vercel URL and test:
 
 ## Troubleshooting
 
-**Build fails:**
-- Check build logs in Vercel
-- Ensure all dependencies are in package.json
-- Verify Node version compatibility
+**Build fails with "table does not exist":**
+- ✅ **Fixed in latest version**: The build script now runs `prisma migrate deploy`
+- Make sure you have the latest `package.json` with updated build script
+- Ensure `DATABASE_URL` environment variable is set in Vercel
+- The migrations will run automatically during build
 
-**Database errors:**
-- For SQLite: ensure DATABASE_URL=file:./production.db
+**Build fails with "Invalid connection string":**
+- Verify your `DATABASE_URL` is correct
+- Format should be: `postgresql://user:pass@host:5432/dbname?sslmode=require`
+- Make sure there are no extra spaces or quotes
+
+**Build succeeds but no products showing:**
+- Run the seed script to add sample products (see Step 4 above)
+- Or manually add products via `/admin/products/new`
+
+**Database connection errors:**
 - For PostgreSQL: verify connection string format
-- Check environment variables are set correctly
+- Check that your Neon database is active
+- Ensure environment variables are set correctly in Vercel
 
 **Images not loading:**
 - Images from Unsplash should work automatically
 - For custom uploads: ensure public/uploads exists
+- Check Vercel logs for any image optimization errors
 
 ## Custom Domain (Optional)
 
