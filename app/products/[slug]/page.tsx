@@ -2,10 +2,11 @@ import { prisma } from '@/lib/db';
 import { notFound } from 'next/navigation';
 import Image from 'next/image';
 
-interface Props { params: { slug: string } }
+interface Props { params: Promise<{ slug: string }> }
 
 export default async function ProductPage({ params }: Props) {
-  const product = await prisma.product.findUnique({ where: { slug: params.slug }, include: { category: { select: { slug: true } } } });
+  const { slug } = await params;
+  const product = await prisma.product.findUnique({ where: { slug }, include: { category: { select: { slug: true } } } });
   if (!product) return notFound();
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 grid md:grid-cols-2 gap-8">
