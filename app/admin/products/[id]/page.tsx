@@ -61,9 +61,9 @@ interface PageProps {
 
 export default async function EditProductPage({ params }: PageProps) {
   const { id } = await params;
-  const product = await prisma.product.findUnique({ where: { id } });
+  const product = await prisma.product.findUnique({ where: { id } }).catch(() => null);
   if (!product) return notFound();
-  const categories = await prisma.category.findMany({ orderBy: { titleEn: 'asc' } });
+  const categories = await prisma.category.findMany({ orderBy: { titleEn: 'asc' } }).catch(() => []);
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8">

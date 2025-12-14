@@ -13,7 +13,7 @@ async function ensureUploadsDir() {
 }
 
 async function getCategories() {
-  return prisma.category.findMany({ orderBy: { titleEn: 'asc' } });
+  return prisma.category.findMany({ orderBy: { titleEn: 'asc' } }).catch(() => []);
 }
 
 async function createProduct(formData: FormData) {
