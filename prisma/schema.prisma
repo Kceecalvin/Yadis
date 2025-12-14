@@ -1,0 +1,67 @@
+// Prisma schema for products, categories, users, orders
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  orders    Order[]
+}
+
+model Category {
+  id        String    @id @default(cuid())
+  slug      String    @unique
+  titleEn   String
+  titleSw   String
+  section   String   @default("FOOD")
+  products  Product[]
+}
+
+model Product {
+  id           String     @id @default(cuid())
+  slug         String     @unique
+  nameEn       String
+  nameSw       String
+  descriptionEn String?
+  descriptionSw String?
+  priceCents   Int
+  imageUrl     String
+  categoryId   String
+  category     Category   @relation(fields: [categoryId], references: [id])
+  inStock      Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  orderItems   OrderItem[]
+}
+
+model Order {
+  id          String      @id @default(cuid())
+  userId      String?
+  user        User?       @relation(fields: [userId], references: [id])
+  status      String      @default("PENDING")
+  totalCents  Int
+  currency    String      @default("KES")
+  items       OrderItem[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+model OrderItem {
+  id         String  @id @default(cuid())
+  orderId    String
+  order      Order   @relation(fields: [orderId], references: [id])
+  productId  String
+  product    Product @relation(fields: [productId], references: [id])
+  quantity   Int
+  priceCents Int
+}
