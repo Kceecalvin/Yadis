@@ -1,6 +1,8 @@
 import { prisma } from '@/lib/db';
 import ProductCard from '../components/ProductCard';
 
+export const dynamic = 'force-dynamic';
+
 interface Props {
   searchParams: Promise<{ q?: string }>;
 }

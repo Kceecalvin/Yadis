@@ -4,16 +4,18 @@ import { prisma } from '@/lib/db';
 import ProductCard from './components/ProductCard';
 import ProductRecommendations from './components/ProductRecommendations';
 
+export const dynamic = 'force-dynamic';
+
 export default async function HomePage() {
   const featured = await prisma.product.findMany({
     orderBy: { createdAt: 'desc' },
     take: 8,
-  });
+  }).catch(() => []);
   
   const categories = await prisma.category.findMany({
     where: { section: 'FOOD' },
     orderBy: { titleEn: 'asc' },
-  });
+  }).catch(() => []);
 
   return (
     <div>

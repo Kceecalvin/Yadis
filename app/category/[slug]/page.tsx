@@ -2,6 +2,8 @@ import { prisma } from '@/lib/db';
 import Link from 'next/link';
 import Image from 'next/image';
 
+export const dynamic = 'force-dynamic';
+
 interface Props { params: Promise<{ slug: string }> }
 
 const subcatImage: Record<string, string> = {
@@ -19,12 +21,12 @@ const subcatImage: Record<string, string> = {
 
 export default async function CategoryPage({ params }: Props) {
   const { slug } = await params;
-  const cat = await prisma.category.findUnique({ where: { slug } });
+  const cat = await prisma.category.findUnique({ where: { slug } }).catch(() => null);
   const products = await prisma.product.findMany({
     where: { category: { slug } },
     orderBy: { createdAt: 'desc' },
     include: { category: { select: { slug: true } } },
-  });
+  }).catch(() => []);
 
   let showSubcats = false;
   if (!products.length) {
@@ -37,7 +39,7 @@ export default async function CategoryPage({ params }: Props) {
       NOT: { slug: cat.slug },
     },
     orderBy: { titleEn: 'asc' },
-  }) : [];
+  }).catch(() => []) : [];
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8">
