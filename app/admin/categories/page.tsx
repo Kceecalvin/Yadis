@@ -1,8 +1,10 @@
 import { prisma } from '@/lib/db';
 import Link from 'next/link';
 
+export const dynamic = 'force-dynamic';
+
 export default async function AdminCategories() {
-  const categories = await prisma.category.findMany({ orderBy: { titleEn: 'asc' } });
+  const categories = await prisma.category.findMany({ orderBy: { titleEn: 'asc' } }).catch(() => []);
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
       <div className="flex items-center justify-between mb-6">
