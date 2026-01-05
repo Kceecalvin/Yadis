@@ -433,7 +433,7 @@ export default function PerformanceMetricsPage() {
               </div>
             </>
           )}
-        </div>
+        </>
       )}
     </div>
   );
