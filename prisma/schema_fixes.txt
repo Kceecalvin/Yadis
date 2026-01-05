@@ -1,0 +1,2 @@
+# Need to add userTiers relation to LoyaltyTier
+# Need to add shares relation to Product

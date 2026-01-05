@@ -1,0 +1,305 @@
+// Multi-Tenant E-commerce Prisma Schema
+// This is the proposed schema for multi-tenant architecture
+// Compare with schema.prisma to see changes needed
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// NEW: Shop/Tenant Model
+model Shop {
+  id          String   @id @default(cuid())
+  slug        String   @unique  // For subdomain or path: shop-slug
+  name        String
+  description String?
+  logoUrl     String?
+  bannerUrl   String?
+  
+  // Owner information
+  ownerId     String
+  owner       ShopOwner @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  
+  // Customization & Branding
+  primaryColor   String  @default("#8B4513")
+  secondaryColor String  @default("#A0522D")
+  accentColor    String  @default("#D2691E")
+  
+  // Business & Contact Details
+  whatsappNumber String?
+  email          String?
+  phone          String?
+  address        String?
+  city           String?
+  country        String  @default("Kenya")
+  
+  // Social Media
+  instagramUrl   String?
+  facebookUrl    String?
+  twitterUrl     String?
+  
+  // Subscription & Status
+  plan           String   @default("FREE") // FREE, BASIC, PRO, ENTERPRISE
+  status         String   @default("ACTIVE") // ACTIVE, SUSPENDED, CLOSED
+  subscriptionStartedAt DateTime @default(now())
+  subscriptionEndsAt    DateTime?
+  
+  // Settings
+  allowGuestCheckout Boolean @default(true)
+  requireEmailVerification Boolean @default(false)
+  autoAcceptOrders Boolean @default(true)
+  
+  // Stats (denormalized for performance)
+  totalProducts  Int @default(0)
+  totalOrders    Int @default(0)
+  totalRevenue   Int @default(0) // in cents
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  categories  Category[]
+  products    Product[]
+  orders      Order[]
+  customers   Customer[]
+  
+  @@index([slug])
+  @@index([ownerId])
+  @@index([status])
+}
+
+// NEW: Shop Owner Model (separate from customers)
+model ShopOwner {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  phone     String?
+  password  String   // Hashed with bcrypt
+  
+  // Verification
+  emailVerified Boolean  @default(false)
+  phoneVerified Boolean  @default(false)
+  
+  // Profile
+  avatar     String?
+  bio        String?
+  
+  // Status
+  status     String   @default("ACTIVE") // ACTIVE, SUSPENDED, BANNED
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  lastLoginAt DateTime?
+  
+  shops     Shop[]
+  
+  @@index([email])
+}
+
+// UPDATED: Customer Model (shop-specific customers)
+model Customer {
+  id        String   @id @default(cuid())
+  email     String
+  name      String?
+  phone     String?
+  
+  // Shop relationship
+  shopId    String
+  shop      Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  
+  // Address
+  address   String?
+  city      String?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  orders    Order[]
+  
+  @@unique([email, shopId]) // Same email can be customer in different shops
+  @@index([shopId])
+  @@index([email])
+}
+
+// UPDATED: Category Model (now shop-specific)
+model Category {
+  id        String    @id @default(cuid())
+  slug      String
+  titleEn   String
+  titleSw   String
+  section   String   @default("FOOD")
+  
+  // Shop relationship
+  shopId    String
+  shop      Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  
+  products  Product[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@unique([slug, shopId]) // Slug unique per shop
+  @@index([shopId])
+  @@index([section])
+}
+
+// UPDATED: Product Model (now shop-specific)
+model Product {
+  id           String     @id @default(cuid())
+  slug         String
+  nameEn       String
+  nameSw       String
+  descriptionEn String?
+  descriptionSw String?
+  priceCents   Int
+  imageUrl     String
+  
+  // Shop relationship
+  shopId       String
+  shop         Shop       @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  
+  categoryId   String
+  category     Category   @relation(fields: [categoryId], references: [id])
+  
+  inStock      Boolean    @default(true)
+  featured     Boolean    @default(false)
+  
+  // Inventory
+  stockQuantity Int?      // null = unlimited stock
+  lowStockAlert Int?      // Alert when stock below this
+  
+  // SEO
+  metaTitle       String?
+  metaDescription String?
+  
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  
+  orderItems   OrderItem[]
+  
+  @@unique([slug, shopId]) // Slug unique per shop
+  @@index([shopId])
+  @@index([categoryId])
+  @@index([inStock])
+  @@index([featured])
+}
+
+// UPDATED: Order Model (now shop-specific)
+model Order {
+  id          String      @id @default(cuid())
+  
+  // Shop relationship
+  shopId      String
+  shop        Shop        @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  
+  // Customer (can be guest or registered)
+  customerId  String?
+  customer    Customer?   @relation(fields: [customerId], references: [id])
+  
+  // Guest customer info
+  guestName   String?
+  guestEmail  String?
+  guestPhone  String?
+  
+  // Order details
+  status      String      @default("PENDING") // PENDING, CONFIRMED, PROCESSING, SHIPPED, DELIVERED, CANCELLED
+  totalCents  Int
+  currency    String      @default("KES")
+  
+  // Delivery
+  deliveryAddress String?
+  deliveryCity    String?
+  deliveryNotes   String?
+  
+  // Payment
+  paymentMethod   String?  // MPESA, CASH, CARD, etc.
+  paymentStatus   String   @default("UNPAID") // UNPAID, PAID, REFUNDED
+  paidAt          DateTime?
+  
+  // Tracking
+  orderNumber     String   @unique
+  trackingNumber  String?
+  
+  items       OrderItem[]
+  
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  
+  @@index([shopId])
+  @@index([customerId])
+  @@index([status])
+  @@index([orderNumber])
+  @@index([createdAt])
+}
+
+model OrderItem {
+  id         String  @id @default(cuid())
+  orderId    String
+  order      Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId  String
+  product    Product @relation(fields: [productId], references: [id])
+  quantity   Int
+  priceCents Int     // Price at time of order
+  
+  @@index([orderId])
+  @@index([productId])
+}
+
+// NEW: Platform Admin (for you to manage all shops)
+model PlatformAdmin {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  password  String   // Hashed
+  role      String   @default("ADMIN") // ADMIN, SUPER_ADMIN
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  lastLoginAt DateTime?
+  
+  @@index([email])
+}
+
+// NEW: Subscription Transactions
+model SubscriptionTransaction {
+  id              String   @id @default(cuid())
+  shopId          String
+  plan            String
+  amountCents     Int
+  currency        String   @default("KES")
+  paymentMethod   String
+  paymentStatus   String   @default("PENDING")
+  
+  // Payment gateway details
+  transactionRef  String?  @unique
+  gatewayResponse String?  // JSON
+  
+  createdAt       DateTime @default(now())
+  paidAt          DateTime?
+  
+  @@index([shopId])
+  @@index([transactionRef])
+}
+
+// NEW: Activity Log (audit trail)
+model ActivityLog {
+  id          String   @id @default(cuid())
+  shopId      String?
+  userId      String?  // Could be shop owner or admin
+  userType    String   // SHOP_OWNER, ADMIN, CUSTOMER
+  action      String   // CREATE_PRODUCT, UPDATE_ORDER, etc.
+  entityType  String?  // PRODUCT, ORDER, CATEGORY
+  entityId    String?
+  details     String?  // JSON
+  ipAddress   String?
+  
+  createdAt   DateTime @default(now())
+  
+  @@index([shopId])
+  @@index([userId])
+  @@index([createdAt])
+}

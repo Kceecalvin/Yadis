@@ -1,0 +1,600 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Badge {
+  id          String      @id
+  name        String      @unique
+  description String
+  icon        String
+  category    String
+  requirement Int
+  bonusPoints Int         @default(0)
+  tier        String      @default("BRONZE")
+  isActive    Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime
+  UserBadge   UserBadge[]
+
+  @@index([category])
+  @@index([isActive])
+}
+
+model Category {
+  id      String    @id
+  slug    String    @unique
+  titleEn String
+  titleSw String
+  section String    @default("FOOD")
+  Product Product[]
+}
+
+model Contest {
+  id               String         @id
+  name             String
+  description      String
+  type             String
+  prizeType        String
+  prizeValue       Int
+  prizeDescription String
+  startDate        DateTime
+  endDate          DateTime
+  isActive         Boolean        @default(true)
+  winnerId         String?
+  winnerAnnounced  Boolean        @default(false)
+  maxEntries       Int?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime
+  ContestEntry     ContestEntry[]
+
+  @@index([isActive, startDate, endDate])
+  @@index([type])
+}
+
+model ContestEntry {
+  id        String   @id
+  contestId String
+  userId    String
+  entries   Int      @default(1)
+  score     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime
+  Contest   Contest  @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  User      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([contestId, userId])
+  @@index([contestId, score])
+  @@index([userId])
+}
+
+model CouponCode {
+  id             String        @id
+  code           String        @unique
+  description    String?
+  discountType   String        @default("PERCENTAGE")
+  discountValue  Int
+  minOrderAmount Int?
+  maxUsesGlobal  Int?
+  maxUsesPerUser Int?
+  isActive       Boolean       @default(true)
+  startDate      DateTime
+  endDate        DateTime
+  usedCount      Int           @default(0)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime
+  CouponUsage    CouponUsage[]
+
+  @@index([code])
+  @@index([isActive])
+}
+
+model CouponUsage {
+  id             String     @id
+  couponId       String
+  userId         String
+  orderId        String?
+  discountAmount Int
+  createdAt      DateTime   @default(now())
+  CouponCode     CouponCode @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  User           User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([couponId])
+  @@index([userId])
+}
+
+model DeliveryZone {
+  id          String   @id
+  name        String
+  centerLat   Float    @default(-0.5962113885867295)
+  centerLng   Float    @default(37.271849811578356)
+  boundaryLat Float?
+  boundaryLng Float?
+  radiusKm    Float
+  baseFee     Int      @default(0)
+  perKmFee    Int      @default(1000)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
+
+  @@index([isActive])
+}
+
+model Inventory {
+  id              String         @id
+  productId       String         @unique
+  quantity        Int            @default(0)
+  reserved        Int            @default(0)
+  available       Int            @default(0)
+  reorderLevel    Int            @default(10)
+  reorderQuantity Int            @default(50)
+  lastRestockDate DateTime?
+  lastSoldAt      DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime
+  Product         Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
+  InventoryLog    InventoryLog[]
+
+  @@index([productId])
+  @@index([quantity])
+}
+
+model InventoryLog {
+  id             String    @id
+  inventoryId    String
+  type           String
+  quantityChange Int
+  reason         String?
+  createdAt      DateTime  @default(now())
+  Inventory      Inventory @relation(fields: [inventoryId], references: [id], onDelete: Cascade)
+
+  @@index([inventoryId])
+  @@index([type])
+}
+
+model Leaderboard {
+  id          String   @id
+  userId      String
+  period      String
+  category    String
+  rank        Int
+  score       Int
+  periodStart DateTime
+  periodEnd   DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
+  User        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, period, category])
+  @@index([period, category, rank])
+  @@index([userId])
+}
+
+model Milestone {
+  id            String          @id
+  name          String
+  description   String
+  icon          String          @default("⭐")
+  type          String
+  threshold     Int
+  rewardType    String
+  rewardValue   Int
+  isActive      Boolean         @default(true)
+  order         Int             @default(0)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime
+  UserMilestone UserMilestone[]
+
+  @@index([isActive])
+  @@index([type, threshold])
+}
+
+model Notification {
+  id        String    @id
+  userId    String
+  type      String
+  title     String
+  message   String
+  orderId   String?
+  sentVia   String    @default("EMAIL")
+  status    String    @default("PENDING")
+  isRead    Boolean   @default(false)
+  metadata  Json?
+  createdAt DateTime  @default(now())
+  sentAt    DateTime?
+  User      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([status])
+  @@index([type])
+  @@index([userId])
+}
+
+model Order {
+  id                String         @id
+  userId            String?
+  status            String         @default("PENDING")
+  totalCents        Int
+  currency          String         @default("KES")
+  customerName      String
+  customerEmail     String?
+  customerPhone     String
+  deliveryAddress   String
+  deliveryBuilding  String?
+  deliveryHouse     String?
+  deliveryFloor     String?
+  deliveryCity      String?
+  deliveryNotes     String?
+  deliveryMethod    String         @default("delivery")
+  deliveryLatitude  Float?
+  deliveryLongitude Float?
+  deliveryFee       Int            @default(0)
+  deliveryZone      String?
+  notes             String?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime
+  User              User?          @relation(fields: [userId], references: [id])
+  OrderItem         OrderItem[]
+  OrderTracking     OrderTracking?
+  Payment           Payment[]
+}
+
+model OrderAnalytics {
+  id                 String   @id
+  date               DateTime @unique
+  totalOrders        Int      @default(0)
+  totalRevenue       Int      @default(0)
+  averageOrderValue  Int      @default(0)
+  newCustomers       Int      @default(0)
+  returningCustomers Int      @default(0)
+  topProductId       String?
+  createdAt          DateTime @default(now())
+
+  @@index([date])
+}
+
+model OrderItem {
+  id         String  @id
+  orderId    String
+  productId  String
+  quantity   Int
+  priceCents Int
+  Order      Order   @relation(fields: [orderId], references: [id])
+  Product    Product @relation(fields: [productId], references: [id])
+}
+
+model OrderTracking {
+  id                    String    @id
+  orderId               String    @unique
+  status                String    @default("PENDING")
+  confirmedAt           DateTime?
+  shippedAt             DateTime?
+  deliveredAt           DateTime?
+  estimatedDeliveryDate DateTime?
+  notes                 String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime
+  Order                 Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([status])
+}
+
+model Payment {
+  id            String   @id
+  orderId       String
+  method        String
+  status        String   @default("PENDING")
+  amount        Int
+  currency      String   @default("KES")
+  transactionId String?  @unique
+  metadata      Json?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime
+  Order         Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([method])
+  @@index([orderId])
+  @@index([status])
+  @@index([transactionId])
+}
+
+model Product {
+  id                                                                        String                  @id
+  slug                                                                      String                  @unique
+  nameEn                                                                    String
+  nameSw                                                                    String
+  descriptionEn                                                             String?
+  descriptionSw                                                             String?
+  priceCents                                                                Int
+  imageUrl                                                                  String
+  categoryId                                                                String
+  inStock                                                                   Boolean                 @default(true)
+  createdAt                                                                 DateTime                @default(now())
+  updatedAt                                                                 DateTime
+  Inventory                                                                 Inventory?
+  OrderItem                                                                 OrderItem[]
+  Category                                                                  Category                @relation(fields: [categoryId], references: [id])
+  ProductAnalytics                                                          ProductAnalytics[]
+  ProductRecommendation_ProductRecommendation_productIdToProduct            ProductRecommendation[] @relation("ProductRecommendation_productIdToProduct")
+  ProductRecommendation_ProductRecommendation_recommendedProductIdToProduct ProductRecommendation[] @relation("ProductRecommendation_recommendedProductIdToProduct")
+  ProductReview                                                             ProductReview[]
+  UserInteraction                                                           UserInteraction[]
+  Wishlist                                                                  Wishlist[]
+}
+
+model ProductAnalytics {
+  id             String   @id
+  productId      String
+  date           DateTime
+  viewCount      Int      @default(0)
+  clickCount     Int      @default(0)
+  addToCartCount Int      @default(0)
+  purchaseCount  Int      @default(0)
+  revenue        Int      @default(0)
+  createdAt      DateTime @default(now())
+  Product        Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, date])
+  @@index([date])
+  @@index([productId])
+}
+
+model ProductRecommendation {
+  id                                                          String   @id
+  productId                                                   String
+  recommendedProductId                                        String
+  score                                                       Float    @default(0)
+  reason                                                      String?
+  createdAt                                                   DateTime @default(now())
+  updatedAt                                                   DateTime
+  Product_ProductRecommendation_productIdToProduct            Product  @relation("ProductRecommendation_productIdToProduct", fields: [productId], references: [id], onDelete: Cascade)
+  Product_ProductRecommendation_recommendedProductIdToProduct Product  @relation("ProductRecommendation_recommendedProductIdToProduct", fields: [recommendedProductId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, recommendedProductId])
+  @@index([productId])
+}
+
+model ProductReview {
+  id           String   @id
+  productId    String
+  userId       String
+  rating       Int
+  title        String
+  comment      String?
+  isApproved   Boolean  @default(false)
+  helpfulCount Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime
+  Product      Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  User         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, userId])
+  @@index([isApproved])
+  @@index([productId])
+  @@index([userId])
+}
+
+model Referral {
+  id             String       @id
+  codeId         String
+  referralEmail  String
+  referredUserId String?
+  status         String       @default("PENDING")
+  completedAt    DateTime?
+  expiresAt      DateTime
+  createdAt      DateTime     @default(now())
+  ReferralCode   ReferralCode @relation(fields: [codeId], references: [id], onDelete: Cascade)
+  User           User?        @relation(fields: [referredUserId], references: [id])
+
+  @@index([codeId])
+  @@index([referredUserId])
+  @@index([status])
+}
+
+model ReferralCode {
+  id                 String     @id
+  code               String     @unique
+  referrerId         String
+  discountPercentage Int        @default(10)
+  isActive           Boolean    @default(true)
+  expiresAt          DateTime?
+  usageCount         Int        @default(0)
+  maxUses            Int?
+  createdAt          DateTime   @default(now())
+  Referral           Referral[]
+  User               User       @relation(fields: [referrerId], references: [id], onDelete: Cascade)
+
+  @@index([code])
+  @@index([isActive])
+  @@index([referrerId])
+}
+
+model ReferralReward {
+  id         String    @id
+  userId     String
+  referralId String?
+  type       String
+  amount     Int
+  isUsed     Boolean   @default(false)
+  usedAt     DateTime?
+  expiresAt  DateTime
+  createdAt  DateTime  @default(now())
+  User       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([isUsed])
+  @@index([userId])
+}
+
+model SavedLocation {
+  id          String   @id
+  latitude    Float
+  longitude   Float
+  address     String?
+  building    String?
+  floor       String?
+  house       String?
+  city        String?
+  notes       String?
+  distanceKm  Float?
+  deliveryFee Int?
+  usageCount  Int      @default(1)
+  lastUsedAt  DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
+
+  @@unique([latitude, longitude])
+  @@index([lastUsedAt])
+  @@index([usageCount])
+}
+
+model SavedSearchFilter {
+  id         String   @id
+  userId     String
+  name       String
+  categories String?
+  priceMin   Int?
+  priceMax   Int?
+  inStock    Boolean?
+  minRating  Int?
+  sortBy     String?
+  isSaved    Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime
+  User       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model SpinHistory {
+  id          String     @id
+  userId      String
+  rewardId    String
+  rewardType  String
+  rewardValue Int
+  rewardName  String
+  createdAt   DateTime   @default(now())
+  SpinReward  SpinReward @relation(fields: [rewardId], references: [id], onDelete: Cascade)
+  User        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+  @@index([userId])
+}
+
+model SpinReward {
+  id          String        @id
+  name        String
+  description String?
+  icon        String        @default("🎁")
+  rewardType  String
+  rewardValue Int
+  probability Float
+  color       String        @default("#FFD700")
+  isActive    Boolean       @default(true)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime
+  SpinHistory SpinHistory[]
+
+  @@index([isActive])
+}
+
+model User {
+  id                String              @id
+  email             String?             @unique
+  name              String?
+  image             String?
+  phone             String?
+  isPlatformAdmin   Boolean             @default(false)
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime
+  ContestEntry      ContestEntry[]
+  CouponUsage       CouponUsage[]
+  Leaderboard       Leaderboard[]
+  Notification      Notification[]
+  Order             Order[]
+  ProductReview     ProductReview[]
+  Referral          Referral[]
+  ReferralCode      ReferralCode[]
+  ReferralReward    ReferralReward[]
+  SavedSearchFilter SavedSearchFilter[]
+  SpinHistory       SpinHistory[]
+  UserBadge         UserBadge[]
+  UserInteraction   UserInteraction[]
+  UserMilestone     UserMilestone[]
+  UserSpins         UserSpins?
+  Wishlist          Wishlist[]
+}
+
+model UserBadge {
+  id       String   @id
+  userId   String
+  badgeId  String
+  progress Int      @default(0)
+  earnedAt DateTime @default(now())
+  Badge    Badge    @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+  User     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, badgeId])
+  @@index([earnedAt])
+  @@index([userId])
+}
+
+model UserInteraction {
+  id           String   @id
+  userId       String
+  productId    String
+  actionType   String
+  actionCount  Int      @default(1)
+  lastActionAt DateTime @default(now())
+  Product      Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  User         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId, actionType])
+  @@index([actionType])
+  @@index([productId])
+  @@index([userId])
+}
+
+model UserMilestone {
+  id          String    @id
+  userId      String
+  milestoneId String
+  achievedAt  DateTime  @default(now())
+  Milestone   Milestone @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
+  User        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, milestoneId])
+  @@index([userId])
+}
+
+model UserSpins {
+  id             String    @id
+  userId         String    @unique
+  spinsAvailable Int       @default(0)
+  totalSpins     Int       @default(0)
+  totalWinnings  Int       @default(0)
+  lastSpinAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime
+  User           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([spinsAvailable])
+}
+
+model Wishlist {
+  id        String   @id
+  userId    String
+  productId String
+  addedAt   DateTime @default(now())
+  Product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  User      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId])
+  @@index([productId])
+  @@index([userId])
+}

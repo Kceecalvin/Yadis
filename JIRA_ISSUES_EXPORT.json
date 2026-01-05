@@ -1,0 +1,91 @@
+{
+  "issues": [
+    {
+      "summary": "Order Management System Enhancement",
+      "issueType": "Epic",
+      "priority": "High",
+      "description": "Complete enhancement of the order management system to properly capture and store all customer delivery information. This epic covers database schema updates, API modifications, and end-to-end testing to ensure orders are processed correctly from checkout to delivery.",
+      "epicName": "Order System V2",
+      "components": ["Backend", "Database", "Frontend"],
+      "labels": ["order-system", "enhancement", "customer-experience"]
+    },
+    {
+      "summary": "CRITICAL: Customer delivery data not saved to database",
+      "issueType": "Bug",
+      "priority": "Critical",
+      "description": "## Problem\nThe Order model in Prisma schema is missing essential customer and delivery fields. When customers complete checkout, their delivery address, contact information, and location data are collected by the form but NOT saved to the database.\n\n## Missing Fields\n- customerName, customerEmail, customerPhone\n- deliveryAddress, deliveryCity, deliveryBuilding, deliveryFloor, deliveryHouse\n- deliveryNotes, deliveryMethod, deliveryZone\n- deliveryLatitude, deliveryLongitude, deliveryFee\n- notes (general order notes)\n\n## Impact\n- **Data Loss**: Customer information is permanently lost after checkout\n- **Order Fulfillment Impossible**: Delivery team has no address\n- **Customer Support Blocked**: Cannot contact customers about orders\n- **Business Risk**: Orders cannot be delivered, causing refunds and customer dissatisfaction\n\n## Current Behavior\n1. Customer fills checkout form with all details\n2. Form submits to `/api/orders/create`\n3. API only saves: userId, totalCents, items, status\n4. All customer/delivery data is discarded\n5. Order exists but is unfulfillable\n\n## Expected Behavior\n1. Customer fills checkout form\n2. All data is saved to Order table\n3. Order tracking shows complete information\n4. Delivery team receives full address\n5. Customer can be contacted\n\n## Acceptance Criteria\n- [x] All customer fields added to Order model\n- [x] Database migration created and tested\n- [x] API saves all customer data\n- [x] Order tracking displays delivery info\n- [x] Admin can view complete order details\n- [x] No data loss for existing orders\n\n## Files Affected\n- `prisma/schema.prisma` - Order model\n- `app/api/orders/create/route.ts` - API endpoint\n- `app/orders/page.tsx` - Order tracking display\n- `app/orders/[id]/page.tsx` - Order details page",
+      "components": ["Backend", "Database"],
+      "labels": ["critical-bug", "data-loss", "order-system", "database-schema"],
+      "epicLink": "Order System V2"
+    },
+    {
+      "summary": "Add customer delivery fields to Order schema",
+      "issueType": "Task",
+      "priority": "Critical",
+      "description": "## Objective\nUpdate the Prisma Order model to include all customer and delivery information fields.\n\n## Fields to Add\n```prisma\ncustomerName      String\ncustomerEmail     String?\ncustomerPhone     String\ndeliveryAddress   String\ndeliveryBuilding  String?\ndeliveryHouse     String?\ndeliveryFloor     String?\ndeliveryCity      String?\ndeliveryNotes     String?\ndeliveryMethod    String    @default(\"delivery\")\ndeliveryLatitude  Float?\ndeliveryLongitude Float?\ndeliveryFee       Int       @default(0)\ndeliveryZone      String?\nnotes             String?\n```\n\n## Steps\n1. Open `prisma/schema.prisma`\n2. Locate `model Order` (around line 71)\n3. Add all fields above before the relations\n4. Save file\n5. Generate Prisma client: `npx prisma generate`\n6. Create migration: `npx prisma migrate dev --name add_order_customer_fields`\n7. Verify migration file looks correct\n\n## Validation\n- [x] All fields added with correct types\n- [x] Optional fields marked with `?`\n- [x] Default values set where appropriate\n- [x] Prisma client generates without errors\n- [x] Migration file created successfully\n\n## Technical Notes\n- Make customerPhone required (essential for delivery)\n- Make customerEmail optional (not all customers have email)\n- Store coordinates as Float for GPS precision\n- Store deliveryFee in cents (Int) for consistency",
+      "components": ["Database"],
+      "labels": ["prisma", "database-migration", "schema-update"],
+      "epicLink": "Order System V2",
+      "storyPoints": 2,
+      "timeEstimate": "1h"
+    },
+    {
+      "summary": "Update order creation API to save customer data",
+      "issueType": "Task",
+      "priority": "Critical",
+      "description": "## Objective\nModify `/api/orders/create/route.ts` to extract and save all customer delivery data from the checkout form.\n\n## Changes Required\n\n### 1. Update Request Body Extraction\nAdd all new fields to destructuring:\n```typescript\nconst {\n  items,\n  totalAmount,\n  customerName,\n  customerEmail,\n  customerPhone,\n  deliveryAddress,\n  deliveryBuilding,\n  deliveryHouse,\n  deliveryFloor,\n  deliveryCity,\n  deliveryNotes,\n  deliveryMethod,\n  deliveryLatitude,\n  deliveryLongitude,\n  deliveryFee,\n  deliveryZone,\n  notes\n} = await request.json();\n```\n\n### 2. Add Validation\n```typescript\nif (!customerName || !customerPhone) {\n  return NextResponse.json(\n    { error: 'Customer name and phone are required' },\n    { status: 400 }\n  );\n}\n\nif (deliveryMethod === 'delivery' && !deliveryAddress) {\n  return NextResponse.json(\n    { error: 'Delivery address is required' },\n    { status: 400 }\n  );\n}\n```\n\n### 3. Update Order Creation\nAdd all fields to the `prisma.order.create` call.\n\n## Testing\n- [x] API accepts all new fields\n- [x] Validation rejects missing required fields\n- [x] Data is saved correctly to database\n- [x] Response includes order ID\n- [x] Error handling works properly\n\n## Files Changed\n- `app/api/orders/create/route.ts`",
+      "components": ["Backend"],
+      "labels": ["api", "validation", "order-system"],
+      "epicLink": "Order System V2",
+      "storyPoints": 3,
+      "timeEstimate": "2h",
+      "blockedBy": ["Add customer delivery fields to Order schema"]
+    },
+    {
+      "summary": "Run database migration and verify data integrity",
+      "issueType": "Task",
+      "priority": "High",
+      "description": "## Objective\nApply the database migration to add customer fields to the Order table and verify no data loss.\n\n## Steps\n\n### Development Environment\n1. Review migration file in `prisma/migrations/`\n2. Check migration SQL for correctness\n3. Backup development database (if has important data)\n4. Run: `npx prisma migrate dev`\n5. Verify migration applied successfully\n6. Check Prisma Studio: `npx prisma studio`\n7. Verify existing orders still intact\n\n### Production Environment (when ready)\n1. **CRITICAL**: Backup production database first\n2. Test migration on staging environment\n3. Schedule maintenance window\n4. Run: `npx prisma migrate deploy`\n5. Verify all existing orders preserved\n6. Monitor for errors\n7. Have rollback plan ready\n\n## Validation Checklist\n- [x] Migration file reviewed and approved\n- [x] Development database backed up\n- [x] Migration runs without errors\n- [x] All new fields present in database\n- [x] Existing orders unchanged\n- [x] Prisma Studio shows correct schema\n- [x] Application connects successfully\n\n## Rollback Plan\nIf issues occur:\n1. Revert migration: `npx prisma migrate resolve --rolled-back [migration_name]`\n2. Restore database from backup\n3. Check application logs\n4. Report issues to team",
+      "components": ["Database"],
+      "labels": ["database-migration", "deployment", "data-integrity"],
+      "epicLink": "Order System V2",
+      "storyPoints": 2,
+      "timeEstimate": "1h",
+      "blockedBy": ["Add customer delivery fields to Order schema"]
+    },
+    {
+      "summary": "End-to-end testing of order creation flow",
+      "issueType": "Task",
+      "priority": "High",
+      "description": "## Objective\nThoroughly test the complete order flow from cart to database to verify all customer data is saved correctly.\n\n## Test Scenarios\n\n### Test 1: Complete Order with All Fields\n1. Add 3+ items to cart\n2. Go to checkout\n3. Fill ALL form fields:\n   - Name, Email, Phone\n   - Full address with building/floor/house\n   - Delivery notes\n   - Select delivery method\n   - Choose location on map\n4. Submit order\n5. Verify success message\n6. Check database for order\n7. Verify ALL fields saved correctly\n8. Check order appears on /orders page\n9. Click order to view details\n10. Verify all data displayed\n\n### Test 2: Minimal Required Fields\n1. Add items to cart\n2. Fill only required fields (name, phone, address)\n3. Submit order\n4. Verify optional fields saved as null\n5. Verify order still processes correctly\n\n### Test 3: Validation Testing\n1. Try submitting without name → Should fail\n2. Try submitting without phone → Should fail\n3. Try delivery without address → Should fail\n4. Verify error messages are clear\n\n### Test 4: GPS Coordinates\n1. Select location on map\n2. Verify lat/lng captured\n3. Check saved coordinates in database\n4. Verify delivery zone calculated correctly\n\n### Test 5: Delivery Fee Calculation\n1. Select different delivery zones\n2. Verify fee updates correctly\n3. Check fee saved to order\n4. Verify total includes delivery fee\n\n### Test 6: Rewards Integration\n1. Create order as logged-in user\n2. Verify rewards points awarded\n3. Verify order count incremented\n4. Check rewards still work with new fields\n\n## Acceptance Criteria\n- [x] All test scenarios pass\n- [x] No console errors\n- [x] Data persists correctly\n- [x] Order tracking displays all info\n- [x] No regression in existing features\n- [x] Performance is acceptable\n\n## Test Data\n```\nName: John Doe\nEmail: john@example.com\nPhone: +254712345678\nAddress: Kutus Town, Main Street\nBuilding: Sunrise Apartments\nFloor: 3rd Floor\nHouse: 3B\nCity: Kirinyaga\nNotes: Leave at reception\nMethod: delivery\nZone: Kutus - Sunrise Hostel Area\n```",
+      "components": ["Backend", "Frontend", "Database"],
+      "labels": ["testing", "qa", "order-system"],
+      "epicLink": "Order System V2",
+      "storyPoints": 5,
+      "timeEstimate": "3h",
+      "blockedBy": ["Update order creation API to save customer data", "Run database migration and verify data integrity"]
+    },
+    {
+      "summary": "Update order tracking pages to display delivery information",
+      "issueType": "Task",
+      "priority": "Medium",
+      "description": "## Objective\nUpdate the order tracking UI to display all the newly saved customer and delivery information.\n\n## Files to Update\n\n### 1. `/app/orders/page.tsx`\n- Already shows some delivery info\n- Verify all new fields display correctly\n- Add building, floor, house if present\n- Show delivery method badge\n- Display delivery zone and fee\n\n### 2. `/app/orders/[id]/page.tsx`\n- Create if doesn't exist\n- Show complete order details\n- Display delivery address prominently\n- Show GPS coordinates on map\n- Display all customer contact info\n- Show delivery notes to delivery team\n\n## UI Enhancements\n- Add map widget showing delivery location\n- Color-code delivery zones\n- Show delivery fee breakdown\n- Add \"Contact Customer\" button with phone\n- Display complete address formatted nicely\n\n## Acceptance Criteria\n- [x] All order fields visible on tracking page\n- [x] Address displayed in readable format\n- [x] GPS coordinates shown on map (if available)\n- [x] Delivery zone and fee clearly visible\n- [x] Customer contact info accessible\n- [x] Responsive design maintained\n- [x] No UI regressions",
+      "components": ["Frontend"],
+      "labels": ["frontend", "ui", "order-tracking"],
+      "epicLink": "Order System V2",
+      "storyPoints": 5,
+      "timeEstimate": "4h"
+    },
+    {
+      "summary": "Admin dashboard: View complete order details with delivery info",
+      "issueType": "Story",
+      "priority": "High",
+      "description": "## User Story\nAs an **admin/store manager**, I want to **view complete order details including delivery address and customer contact** so that **I can fulfill orders efficiently and contact customers if needed**.\n\n## Acceptance Criteria\n\n### Order List View\n- [x] Admin can see all orders\n- [x] Each order shows customer name and delivery zone\n- [x] Can filter by delivery zone\n- [x] Can search by customer phone or name\n- [x] Shows delivery method (delivery/pickup)\n\n### Order Detail View\n- [x] Complete customer information visible\n- [x] Full delivery address with building/floor/house\n- [x] Delivery notes prominently displayed\n- [x] GPS coordinates shown on map\n- [x] Customer phone clickable (call or WhatsApp)\n- [x] Delivery fee breakdown shown\n- [x] Can update order status\n- [x] Can add admin notes\n\n### Actions Available\n- [x] Print order receipt with delivery address\n- [x] Copy address to clipboard\n- [x] Open location in Google Maps\n- [x] Send notification to customer\n- [x] Export orders to CSV with all fields\n\n## User Flow\n1. Admin logs into `/admin`\n2. Clicks \"Orders\" in sidebar\n3. Sees list of all orders with zones\n4. Clicks order to view details\n5. Sees complete delivery information\n6. Can contact customer or update status\n7. Marks order as delivered\n\n## Technical Requirements\n- Admin authentication required\n- Read-only for basic admins\n- Edit permissions for managers\n- Audit log for status changes\n\n## Design Notes\n- Use card layout for order details\n- Highlight delivery address section\n- Use icons for delivery method\n- Show map widget if coordinates exist\n- Make phone numbers clickable links",
+      "components": ["Frontend", "Backend"],
+      "labels": ["admin-dashboard", "user-story", "order-management"],
+      "epicLink": "Order System V2",
+      "storyPoints": 8,
+      "timeEstimate": "6h"
+    }
+  ]
+}

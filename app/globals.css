@@ -1,0 +1,20 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-primary: 139 111 71;      /* Warm brown */
+  --color-secondary: 92 74 58;      /* Dark brown */
+  --color-accent: 212 165 116;      /* Light tan */
+  --color-light: 245 241 237;       /* Cream */
+  --color-dark: 62 47 35;           /* Deep brown */
+}
+
+.bg-brand-primary { background-color: rgb(var(--color-primary)); }
+.text-brand-primary { color: rgb(var(--color-primary)); }
+.bg-brand-secondary { background-color: rgb(var(--color-secondary)); }
+.text-brand-secondary { color: rgb(var(--color-secondary)); }
+.bg-brand-accent { background-color: rgb(var(--color-accent)); }
+.text-brand-accent { color: rgb(var(--color-accent)); }
+.bg-brand-light { background-color: rgb(var(--color-light)); }
+.text-brand-dark { color: rgb(var(--color-dark)); }

@@ -1,0 +1,532 @@
+'use client';
+
+import { useSession } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { useEffect, useState } from 'react';
+import LoadingScreen from '../components/LoadingScreen';
+
+interface RewardCardProps {
+  reward: RewardItem;
+  userRewards: UserReward | null;
+  onRedeemed: () => void;
+  formatPrice: (cents: number) => string;
+}
+
+function RewardCard({ reward, userRewards, onRedeemed, formatPrice }: RewardCardProps) {
+  const [isRedeeming, setIsRedeeming] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  const handleRedeem = async () => {
+    setError('');
+    setSuccess('');
+    setIsRedeeming(true);
+
+    try {
+      const response = await fetch('/api/rewards/redeemed', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rewardId: reward.id }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.error || 'Failed to redeem reward');
+        return;
+      }
+
+      setSuccess(`✓ ${data.message}`);
+      setTimeout(() => onRedeemed(), 1500);
+    } catch (error) {
+      setError('Failed to redeem reward. Please try again.');
+      console.error('Redemption error:', error);
+    } finally {
+      setIsRedeeming(false);
+    }
+  };
+
+  const canRedeem = userRewards && userRewards.totalSpend >= reward.minSpend;
+
+  return (
+    <div className="bg-white rounded-lg shadow-md border border-brand-accent/20 overflow-hidden hover:shadow-lg transition-shadow">
+      <div className="h-48 bg-brand-light overflow-hidden relative">
+        {reward.imageUrl && (
+          <img
+            src={reward.imageUrl}
+            alt={reward.title}
+            className="w-full h-full object-cover"
+          />
+        )}
+        {reward.quantity <= 5 && reward.quantity > 0 && (
+          <div className="absolute top-3 right-3 bg-red-500 text-white px-3 py-1 rounded-full text-xs font-bold">
+            Only {reward.quantity} left!
+          </div>
+        )}
+        {reward.quantity === 0 && (
+          <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+            <span className="text-white font-bold text-lg">Out of Stock</span>
+          </div>
+        )}
+      </div>
+
+      <div className="p-6">
+        <h3 className="font-bold text-brand-dark mb-2">{reward.title}</h3>
+        <p className="text-sm text-brand-secondary mb-4">{reward.description}</p>
+
+        <div className="mb-4">
+          <p className="text-2xl font-bold text-brand-primary">{formatPrice(reward.value)}</p>
+          <p className="text-xs text-brand-secondary">
+            Min spend: {formatPrice(reward.minSpend)}
+          </p>
+        </div>
+
+        {error && <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded text-red-700 text-xs">{error}</div>}
+        {success && <div className="mb-3 p-2 bg-green-50 border border-green-200 rounded text-green-700 text-xs">{success}</div>}
+
+        <button
+          onClick={handleRedeem}
+          disabled={!canRedeem || isRedeeming || reward.quantity === 0}
+          className={`w-full px-4 py-2 rounded-lg font-semibold transition-colors ${
+            canRedeem && reward.quantity > 0
+              ? 'bg-brand-primary text-white hover:bg-brand-secondary cursor-pointer'
+              : 'bg-gray-300 text-gray-600 cursor-not-allowed'
+          } ${isRedeeming ? 'opacity-75' : ''}`}
+        >
+          {isRedeeming ? 'Redeeming...' : canRedeem ? 'Redeem Now' : 'Locked'}
+        </button>
+
+        {!canRedeem && (
+          <p className="text-xs text-brand-secondary mt-2">
+            Spend {formatPrice((reward.minSpend - (userRewards?.totalSpend || 0)))} more to unlock
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+interface UserReward {
+  totalSpend: number;
+  purchaseCount: number;
+  pointsEarned: number;
+  pointsRedeemed: number;
+  currentBracketSpend: number;
+  currentBracketReceipts: number;
+  bracketRewardAwarded: number;
+}
+
+interface RewardItem {
+  id: string;
+  title: string;
+  description: string;
+  imageUrl: string;
+  value: number;
+  minSpend: number;
+  quantity: number;
+  isActive: boolean;
+}
+
+interface RedeemedReward {
+  id: string;
+  reward: RewardItem;
+  value: number;
+  code: string;
+  isUsed: boolean;
+  createdAt: string;
+}
+
+export default function RewardsPage() {
+  const { data: session, status } = useSession();
+  const router = useRouter();
+
+  const [userRewards, setUserRewards] = useState<UserReward | null>(null);
+  const [rewardCatalog, setRewardCatalog] = useState<RewardItem[]>([]);
+  const [redeemedRewards, setRedeemedRewards] = useState<RedeemedReward[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'catalog' | 'redeemed'>('dashboard');
+
+  const fetchRewards = async () => {
+    try {
+      const [userRes, catalogRes, redeemedRes] = await Promise.all([
+        fetch('/api/rewards/user'),
+        fetch('/api/rewards/catalog'),
+        fetch('/api/rewards/redeemed'),
+      ]);
+
+      if (userRes.ok) {
+        setUserRewards(await userRes.json());
+      }
+      if (catalogRes.ok) {
+        setRewardCatalog(await catalogRes.json());
+      }
+      if (redeemedRes.ok) {
+        setRedeemedRewards(await redeemedRes.json());
+      }
+    } catch (error) {
+      console.error('Error fetching rewards:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    // Check auth status and redirect if needed
+    if (status === 'loading') return;
+    
+    if (!session?.user?.id) {
+      router.push('/auth/signin');
+      return;
+    }
+
+    fetchRewards();
+  }, [status, session, router]);
+
+  const formatPrice = (cents: number) => {
+    return (cents / 100).toLocaleString('en-KE', {
+      style: 'currency',
+      currency: 'KES',
+      minimumFractionDigits: 0,
+    });
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-KE', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
+  };
+
+  const calculateBracketReward = (spendCents: number) => {
+    const spendKes = spendCents / 100;
+    if (spendKes < 300) return '10';
+    if (spendKes < 500) return '20';
+    if (spendKes < 700) return '30';
+    if (spendKes < 900) return '40';
+    if (spendKes < 1100) return '50';
+    if (spendKes < 1300) return '60';
+    if (spendKes < 1500) return '70';
+    if (spendKes < 1900) return '80';
+    if (spendKes < 2300) return '90';
+    if (spendKes < 3000) return '100';
+    return 'Customized';
+  };
+
+  const availableRewards = userRewards
+    ? rewardCatalog.filter((reward) => userRewards.totalSpend >= reward.minSpend)
+    : [];
+
+  const rewardProgress = userRewards
+    ? Math.min((userRewards.totalSpend / (availableRewards[0]?.minSpend || 3000)) * 100, 100)
+    : 0;
+
+  // Show loading screen while checking auth
+  if (status === 'loading') {
+    return (
+      <LoadingScreen
+        title="Loading Rewards"
+        message="Fetching your rewards data..."
+        steps={['Calculating points', 'Loading catalog', 'Syncing rewards']}
+      />
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-brand-light py-10">
+      <div className="mx-auto max-w-7xl px-4">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-4xl font-bold text-brand-dark mb-2">Rewards Program</h1>
+          <p className="text-brand-secondary">Earn rewards with every purchase at YADDPLAST</p>
+        </div>
+
+        {loading ? (
+          <div className="text-center py-12">
+            <p className="text-brand-secondary">Loading your rewards...</p>
+          </div>
+        ) : (
+          <>
+            {/* Rewards Dashboard Summary */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+              <div className="bg-white rounded-lg shadow-md border border-brand-accent/20 p-6">
+                <p className="text-brand-secondary text-sm mb-2">Total Spent</p>
+                <p className="text-3xl font-bold text-brand-primary">{formatPrice(userRewards?.totalSpend || 0)}</p>
+              </div>
+
+              <div className="bg-white rounded-lg shadow-md border border-brand-accent/20 p-6">
+                <p className="text-brand-secondary text-sm mb-2">Purchases Made</p>
+                <p className="text-3xl font-bold text-brand-primary">{userRewards?.purchaseCount || 0}</p>
+              </div>
+
+              <div className="bg-white rounded-lg shadow-md border border-brand-accent/20 p-6">
+                <p className="text-brand-secondary text-sm mb-2">Points Earned</p>
+                <p className="text-3xl font-bold text-green-600">{formatPrice(userRewards?.pointsEarned || 0)}</p>
+              </div>
+
+              <div className="bg-white rounded-lg shadow-md border border-brand-accent/20 p-6">
+                <p className="text-brand-secondary text-sm mb-2">Points Available</p>
+                <p className="text-3xl font-bold text-blue-600">
+                  {formatPrice((userRewards?.pointsEarned || 0) - (userRewards?.pointsRedeemed || 0))}
+                </p>
+              </div>
+            </div>
+
+            {/* Spending Bracket Progress */}
+            <div className="bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5 rounded-lg shadow-md border border-brand-primary/30 p-6 mb-8">
+              <h3 className="text-xl font-bold text-brand-dark mb-4">Current Spending Bracket</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <div className="bg-white rounded-lg p-4 border border-brand-accent/20">
+                  <p className="text-sm text-brand-secondary mb-1">Receipts Collected</p>
+                  <p className="text-3xl font-bold text-brand-primary">{userRewards?.currentBracketReceipts || 0}<span className="text-lg text-brand-secondary">/10</span></p>
+                </div>
+                <div className="bg-white rounded-lg p-4 border border-brand-accent/20">
+                  <p className="text-sm text-brand-secondary mb-1">Bracket Spend</p>
+                  <p className="text-3xl font-bold text-blue-600">{formatPrice(userRewards?.currentBracketSpend || 0)}</p>
+                </div>
+                <div className="bg-white rounded-lg p-4 border border-brand-accent/20">
+                  <p className="text-sm text-brand-secondary mb-1">Potential Reward</p>
+                  <p className="text-3xl font-bold text-green-600">KES {calculateBracketReward(userRewards?.currentBracketSpend || 0)}</p>
+                </div>
+              </div>
+              
+              {/* Receipt Progress Bar */}
+              <div className="mb-4">
+                <div className="flex justify-between mb-2">
+                  <span className="text-sm font-semibold text-brand-dark">Receipt Progress</span>
+                  <span className="text-sm text-brand-secondary">{userRewards?.currentBracketReceipts || 0}/10 complete</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
+                  <div
+                    className="bg-gradient-to-r from-brand-primary to-brand-secondary h-4 rounded-full transition-all duration-300"
+                    style={{ width: `${((userRewards?.currentBracketReceipts || 0) / 10) * 100}%` }}
+                  ></div>
+                </div>
+              </div>
+              
+              {/* Spending Bracket Info */}
+              <div className="bg-white rounded-lg p-4 border-l-4 border-l-brand-primary">
+                <p className="text-sm text-brand-dark mb-2">
+                  <span className="font-semibold">How it works:</span> Collect 10 receipts and earn rewards based on total spending!
+                </p>
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mt-3">
+                  <div className="text-xs text-center p-2 bg-brand-light rounded">
+                    <p className="font-bold text-brand-primary">Below 300</p>
+                    <p className="text-brand-secondary">10 Free</p>
+                  </div>
+                  <div className="text-xs text-center p-2 bg-brand-light rounded">
+                    <p className="font-bold text-brand-primary">301-500</p>
+                    <p className="text-brand-secondary">20 Free</p>
+                  </div>
+                  <div className="text-xs text-center p-2 bg-brand-light rounded">
+                    <p className="font-bold text-brand-primary">501-700</p>
+                    <p className="text-brand-secondary">30 Free</p>
+                  </div>
+                  <div className="text-xs text-center p-2 bg-brand-light rounded">
+                    <p className="font-bold text-brand-primary">701-900</p>
+                    <p className="text-brand-secondary">40 Free</p>
+                  </div>
+                  <div className="text-xs text-center p-2 bg-brand-light rounded">
+                    <p className="font-bold text-brand-primary">900+</p>
+                    <p className="text-brand-secondary">50+ Free</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Progress to Next Reward */}
+            {availableRewards.length > 0 && (
+              <div className="bg-white rounded-lg shadow-md border border-brand-accent/20 p-6 mb-8">
+                <h3 className="text-xl font-bold text-brand-dark mb-4">Progress to Next Reward</h3>
+                <div className="space-y-3">
+                  <div>
+                    <div className="flex justify-between mb-2">
+                      <span className="text-brand-dark font-medium">{formatPrice(userRewards?.totalSpend || 0)}</span>
+                      <span className="text-brand-secondary">{formatPrice(availableRewards[0]?.minSpend || 0)}</span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-3">
+                      <div
+                        className="bg-gradient-to-r from-brand-primary to-brand-secondary h-3 rounded-full transition-all"
+                        style={{ width: `${rewardProgress}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Tab Navigation */}
+            <div className="flex gap-4 mb-6 border-b border-brand-accent/20">
+              <button
+                onClick={() => setActiveTab('dashboard')}
+                className={`px-4 py-3 font-semibold border-b-2 transition-colors ${
+                  activeTab === 'dashboard'
+                    ? 'border-brand-primary text-brand-primary'
+                    : 'border-transparent text-brand-secondary hover:text-brand-primary'
+                }`}
+              >
+                Dashboard
+              </button>
+              <button
+                onClick={() => setActiveTab('catalog')}
+                className={`px-4 py-3 font-semibold border-b-2 transition-colors ${
+                  activeTab === 'catalog'
+                    ? 'border-brand-primary text-brand-primary'
+                    : 'border-transparent text-brand-secondary hover:text-brand-primary'
+                }`}
+              >
+                Reward Catalog ({availableRewards.length})
+              </button>
+              <button
+                onClick={() => setActiveTab('redeemed')}
+                className={`px-4 py-3 font-semibold border-b-2 transition-colors ${
+                  activeTab === 'redeemed'
+                    ? 'border-brand-primary text-brand-primary'
+                    : 'border-transparent text-brand-secondary hover:text-brand-primary'
+                }`}
+              >
+                My Redeemed ({redeemedRewards.length})
+              </button>
+            </div>
+
+            {/* Tab Content */}
+            <div>
+              {/* Dashboard Tab */}
+              {activeTab === 'dashboard' && (
+                <div className="space-y-6">
+                  <div className="bg-white rounded-lg shadow-md border border-brand-accent/20 p-8">
+                    <h3 className="text-2xl font-bold text-brand-dark mb-6">How the Rewards Program Works</h3>
+                    <div className="space-y-4">
+                      <div className="flex gap-4">
+                        <div className="w-12 h-12 bg-brand-primary/10 rounded-full flex items-center justify-center flex-shrink-0 font-bold text-brand-primary">
+                          1
+                        </div>
+                        <div>
+                          <p className="font-bold text-brand-dark">Shop & Earn</p>
+                          <p className="text-sm text-brand-secondary">Every purchase contributes to your total spend</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-4">
+                        <div className="w-12 h-12 bg-brand-primary/10 rounded-full flex items-center justify-center flex-shrink-0 font-bold text-brand-primary">
+                          2
+                        </div>
+                        <div>
+                          <p className="font-bold text-brand-dark">Unlock Rewards</p>
+                          <p className="text-sm text-brand-secondary">Reach spending thresholds to unlock reward items</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-4">
+                        <div className="w-12 h-12 bg-brand-primary/10 rounded-full flex items-center justify-center flex-shrink-0 font-bold text-brand-primary">
+                          3
+                        </div>
+                        <div>
+                          <p className="font-bold text-brand-dark">Redeem</p>
+                          <p className="text-sm text-brand-secondary">Browse and claim your rewards from the catalog</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-gradient-to-r from-brand-primary/10 to-brand-secondary/10 rounded-lg border border-brand-primary/20 p-6">
+                    <p className="text-brand-dark">
+                      Keep shopping to unlock more rewards! Each purchase brings you closer to amazing discounts and free items.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Catalog Tab */}
+              {activeTab === 'catalog' && (
+                <div>
+                  {availableRewards.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {availableRewards.map((reward) => (
+                        <RewardCard
+                          key={reward.id}
+                          reward={reward}
+                          userRewards={userRewards}
+                          onRedeemed={() => fetchRewards()}
+                          formatPrice={formatPrice}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="bg-white rounded-lg shadow-md border border-brand-accent/20 p-8 text-center">
+                      <p className="text-brand-secondary mb-4">
+                        Keep shopping to unlock rewards! You're getting closer.
+                      </p>
+                      <Link
+                        href="/food"
+                        className="inline-block px-6 py-2 bg-brand-primary text-white rounded-lg font-semibold hover:bg-brand-secondary transition-colors"
+                      >
+                        Continue Shopping
+                      </Link>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Redeemed Tab */}
+              {activeTab === 'redeemed' && (
+                <div>
+                  {redeemedRewards.length > 0 ? (
+                    <div className="space-y-4">
+                      {redeemedRewards.map((redeemed) => (
+                        <div
+                          key={redeemed.id}
+                          className={`rounded-lg shadow-md border p-6 ${
+                            redeemed.isUsed
+                              ? 'bg-gray-50 border-gray-300'
+                              : 'bg-white border-brand-primary/30 border-l-4 border-l-brand-primary'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <h3 className="font-bold text-brand-dark">{redeemed.reward.title}</h3>
+                              <p className="text-sm text-brand-secondary">{redeemed.reward.description}</p>
+                              <p className="text-2xl font-bold text-brand-primary mt-2">
+                                {formatPrice(redeemed.value)}
+                              </p>
+                              <p className="text-xs text-brand-secondary mt-2">
+                                Code: <span className="font-mono font-bold">{redeemed.code}</span>
+                              </p>
+                              <p className="text-xs text-brand-secondary">
+                                Redeemed: {formatDate(redeemed.createdAt)}
+                              </p>
+                            </div>
+                            <div>
+                              <span
+                                className={`px-3 py-1 rounded-full text-sm font-bold ${
+                                  redeemed.isUsed
+                                    ? 'bg-gray-200 text-gray-700'
+                                    : 'bg-green-100 text-green-700'
+                                }`}
+                              >
+                                {redeemed.isUsed ? 'Used' : 'Available'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="bg-white rounded-lg shadow-md border border-brand-accent/20 p-8 text-center">
+                      <p className="text-brand-secondary mb-4">You haven't redeemed any rewards yet</p>
+                      <button
+                        onClick={() => setActiveTab('catalog')}
+                        className="inline-block px-6 py-2 bg-brand-primary text-white rounded-lg font-semibold hover:bg-brand-secondary transition-colors"
+                      >
+                        Browse Rewards
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
