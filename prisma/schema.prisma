@@ -8,8 +8,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-  // If DIRECT_URL is not set, it will use DATABASE_URL
-}
 
 model Badge {
   id          String      @id
